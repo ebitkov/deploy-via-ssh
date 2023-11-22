@@ -1,0 +1,45 @@
+name: 'Deploy via SSH'
+description: 'Deploys files to a remote server via SSH'
+
+inputs:
+  ssh-private-key:
+    description: 'A private SSH key. The public fingerprint must be added to the server'
+    required: true
+  ssh-host:
+    description: 'The address (IP or DNS) of the remote server'
+    required: true
+  ssh-user:
+    description: 'SSH username'
+    required: true
+  deployment-path:
+    description: 'Relative path from mount location where to upload files to'
+    required: true
+  ignored-files:
+    description: 'Files or paths to ignore from upload'
+    required: false
+    default: ./.git ./.github ./node_modules ./tests ./.env.local
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install SSH Key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ inputs.ssh-private-key }}
+        known_hosts: '--placeholder-host'
+
+    - name: Adding known hosts
+      run: ssh-keyscan -H ${{ inputs.ssh-host }} >> ~/.ssh/known_hosts
+
+    - name: Remove redundant files
+      run: rm -fr ${{ inputs.ignored-files }}
+
+    - name: Create archive
+      run: tar -zcvf ../build.tar.gz .
+
+    - name: Deploy with scp
+      run: scp ../build.tar.gz ${{ inputs.ssh-user }}@${{ inputs.ssh-host }}:${{ inputs.deployment-path }}
+
+    - name: Extract archive on remote host
+      run: ssh ${{ inputs.ssh-user }}@${{ inputs.ssh-host }} 'cd ${{ inputs.deployment-path }}; tar -xf build.tar.gz; rm build.tar.gz'
+
