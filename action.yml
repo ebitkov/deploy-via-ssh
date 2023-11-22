@@ -19,6 +19,11 @@ inputs:
     required: false
     default: ./.git ./.github ./node_modules ./tests ./.env.local
 
+  post-upload-commands:
+    description: 'Commands to run after deployment'
+    required: false
+    default: ''
+
 runs:
   using: 'composite'
   steps:
@@ -30,16 +35,25 @@ runs:
 
     - name: Adding known hosts
       run: ssh-keyscan -H ${{ inputs.ssh-host }} >> ~/.ssh/known_hosts
+      shell: bash
 
     - name: Remove redundant files
       run: rm -fr ${{ inputs.ignored-files }}
+      shell: bash
 
     - name: Create archive
       run: tar -zcvf ../build.tar.gz .
+      shell: bash
 
     - name: Deploy with scp
       run: scp ../build.tar.gz ${{ inputs.ssh-user }}@${{ inputs.ssh-host }}:${{ inputs.deployment-path }}
+      shell: bash
 
     - name: Extract archive on remote host
       run: ssh ${{ inputs.ssh-user }}@${{ inputs.ssh-host }} 'cd ${{ inputs.deployment-path }}; tar -xf build.tar.gz; rm build.tar.gz'
+      shell: bash
 
+    - name: Post-Upload Commands
+      if: ${{ inputs.post-upload-commands != '' }}
+      run: ssh ${{ inputs.ssh-user }}@${{ inputs.ssh-host }} '${{ inputs.post-upload-commands }}'
+      shell: bash
